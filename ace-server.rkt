@@ -2,7 +2,9 @@
 
 #| ace-server.rkt https://github.com/rurbina/ace-server |#
 
-(provide ace-server)
+(provide ace-server
+         (rename-out [add-settings ace-server-add-settings])
+         (struct-out ace-settings))
 
 (require web-server/servlet
          web-server/servlet-env
@@ -16,6 +18,29 @@
          scribble/decode)
 
 (define-namespace-anchor anchor)
+
+(struct ace-settings
+  (hostname
+   hostname-regexp
+   server-root))
+
+(define all-settings (list))
+
+(define (add-settings new-settings)
+  (set! all-settings (append all-settings (list new-settings))))
+
+(define (get-settings req)
+  (let ([hostname
+         (for/first ([hdr (request-headers req)]
+                     #:when (string=? (symbol->string (car hdr))
+                                      "host"))
+           (regexp-replace #rx":[0-9]+$" (cdr hdr) ""))])
+    (for/first ([setting all-settings]
+                #:when (let ([rxp (ace-settings-hostname-regexp setting)])
+                         (and (regexp? rxp)
+                              (string? hostname)
+                              (regexp-match? rxp hostname))))
+      setting)))
 
 (define (parse-post-data data)
   (cond
@@ -61,7 +86,10 @@
         [output null]
         [parsed-post (parse-post-data (request-post-data/raw req))]
         [response-code 200]
-        [response-const #"OK"])
+        [response-const #"OK"]
+        [settings (get-settings req)])
+    (when settings
+      (set! template-path (ace-settings-server-root settings)))
     ;; resolve the path
     (for ([p (url-path (request-uri req))])
       (set! template-path (build-path template-path (path/param-path p))))
@@ -92,7 +120,7 @@
      (#t
       (set! response-code 404)
       (set! response-const #"Not found")
-      (set! output "<h1>File not found</h1>")))
+      (set! output (format "<h1>File not found ~v</h1>" (path->string template-path)))))
     (response/full
      response-code response-const
      (current-seconds) TEXT/HTML-MIME-TYPE
@@ -100,12 +128,14 @@
      (list (string->bytes/utf-8 output)))))
 
 ;; launch the servlet
-(define (ace-server)
+(define (ace-server
+         #:port [port 8099]
+         #:default-root [default-root "."])
   (serve/servlet ace-servlet
                  #:launch-browser? #f
                  #:listen-ip #f
-                 #:port 8099
+                 #:port port
                  #:stateless? #t
-                 #:server-root-path "/home/rat/src/ace-server"
-                 #:servlets-root "/home/rat/src/ace-server"
+                 #:server-root-path default-root
+                 #:servlets-root default-root
                  #:servlet-regexp #rx""))
