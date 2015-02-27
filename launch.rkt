@@ -4,7 +4,7 @@
 
 (ace-server-add-settings
  (ace-settings "degen.tk"
-                      #rx"(.*?\\.)*degen.tk$|manzanita"
+                      #rx"(.*?\\.)*degen.tk$|manzanita|.*"
                       "/home/rat/Dropbox/DeGen/web"))
 
 

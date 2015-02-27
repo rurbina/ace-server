@@ -106,6 +106,11 @@
       (namespace-require 'web-server/templates)
       (namespace-require 'xml))
     (namespace-set-variable-value! 'ace-request req #f tns)
+    (namespace-set-variable-value! 'ace-post-raw
+                                   (if (string=? (bytes->string/utf-8 (request-method req)) "POST")
+                                       (bytes->string/utf-8 (request-post-data/raw req))
+                                       "")
+                                   #f tns)
     (namespace-set-variable-value! 'ace-query (url-query (request-uri req)) #f tns)
     (namespace-set-variable-value! 'ace-query-hash null #f tns)
     (namespace-set-variable-value! 'ace-query-post parsed-post #f tns)
@@ -116,7 +121,11 @@
     (eval '(set! ace-query-post-hash (make-hash ace-query-post)) tns)
     (cond
      ([file-exists? template-path]
-      (set! output (eval `(include-template ,(path->string template-path)) tns)))
+      (cond
+       ([regexp-match? #px".rkt$" (path->string template-path)]
+        (set! output (eval `(include ,(path->string template-path)) tns)))
+       (#t
+        (set! output (eval `(include-template ,(path->string template-path)) tns)))))
      (#t
       (set! response-code 404)
       (set! response-const #"Not found")
