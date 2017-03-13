@@ -2,10 +2,9 @@
 
 (require web-server/servlet-env)
 
-(provide ace-server)
+(provide (rename-out [ace-start ace]))
 
-(define hosts
-  #hash{["localhost" . #hash{}]})
+(define hosts #hash{["localhost" . #hash{}]})
 
 (define (load-doc filename
                   #:base-path    [base-path "."]
@@ -26,38 +25,45 @@
   (let ([tns (make-base-namespace)]
         [hostname (hash-ref (make-hash (request-headers req)) 'host)]
         [uri (url->string (request-uri req))]
-        [headers null]
+        [headers (make-hash (request-headers req))]
         [body null]
         [filename null]
         [filepath null]
-        [base-path "/home/rurbina/Dropbox/DeGen/web-static"]
+        [base-path "/www"]
         [settings null])
-    (eval '(require web-server/templates) tns)
-    (eval '(require racket) tns)
-    (eval '(require racket/base) tns)
-    (eval '(require racket/file) tns)
-    (eval '(require db) tns)
-    (eval '(require ratamarkup/ratamarkup) tns)
-    (eval `(current-directory ,base-path) tns)
-    (namespace-set-variable-value! 'request req #f tns)
-    (namespace-set-variable-value! 'headers headers #f tns)
-    (set! filename (string-join (list base-path uri) ""))
-    (set! body
-          (with-handlers
-              ([exn:fail:contract:divide-by-zero? (lambda (v) "divide-by-zero")]
-               [exn:fail? (lambda (v) (format "caught exception:~v" v))])
-            (set! filepath (build-path filename))
-            (set! filepath (find-relative-path (current-directory) filepath))
-            (eval `(include-template ,(path->string filepath)) tns)))
-    (set! body (list (string->bytes/utf-8 body)))
-    (response/full 200 #"OK"
-                   (current-seconds)
-                   TEXT/HTML-MIME-TYPE
-                   ;(string->bytes/utf-8 "text/plain")
-                   headers
-                   body)))
+    (for ([hostre (hash-keys hosts)])
+      (let ([hre (if (regexp? hostre) hostre (regexp hostre))])
+        (when (regexp-match hre hostname)
+          (set! settings (hash-ref hosts hostre)))))
+    (when (hash? settings)
+      (set! base-path (hash-ref settings 'base-path))
+      (eval '(require web-server/templates) tns)
+      (for ([mod (hash-ref settings 'modules '())])
+        (eval `(require ,mod) tns))
+      (eval `(current-directory ,base-path) tns)
+      (namespace-set-variable-value! 'request req #f tns)
+      (namespace-set-variable-value! 'headers headers #f tns)
+      (set! filename (string-join (list base-path uri) ""))
+      (set! body
+            (with-handlers
+                ([exn:fail:contract:divide-by-zero? (lambda (v) "divide-by-zero")]
+                 [exn:fail? (lambda (v) (format "caught exception:~v" v))])
+              (set! filepath (build-path filename))
+              (set! filepath (find-relative-path (current-directory) filepath))
+              (eval `(include-template ,(path->string filepath)) tns)))
+      (set! body (list (string->bytes/utf-8 body)))
+      (response/full 200 #"OK"
+                     (current-seconds)
+                     TEXT/HTML-MIME-TYPE
+                     headers
+                     body))))
 
-(serve/servlet ace-server
-               #:launch-browser? #f
-               #:servlet-regexp #px""
-               #:port 8086)
+(define (ace-start
+         #:hosts [ace-hosts null]
+         #:port  [port 8086])
+  (when (hash? ace-hosts)
+    (set! hosts ace-hosts))
+  (serve/servlet ace-server
+                 #:launch-browser? #f
+                 #:servlet-regexp #px""
+                 #:port port))

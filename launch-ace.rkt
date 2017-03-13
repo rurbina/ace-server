@@ -1,8 +1,11 @@
 #lang racket/base
 
 ; sample launch file for ace server
-(require "ace.rkt")
+(require ace-server/ace)
 
-(ace-server
- #:hosts (make-hash `(["local.degen.ml" . (make-hash `([base-path . "/www/degen"]))])))
+(define hosts
+  #hash{["degen.ml" . #hash{[base-path . "/home/rurbina/Dropbox/DeGen/web-static"]
+                            [modules . (racket db ratamarkup/ratamarkup)]}]})
+
+(ace #:hosts hosts)
 
