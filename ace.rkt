@@ -6,26 +6,10 @@
 
 (define hosts #hash{["localhost" . #hash{}]})
 
-(define (load-doc filename
-                  #:base-path    [base-path "."]
-                  #:headers-only [nobody #f])
-  (let ([body "<empty>"]
-        [headers null]
-        [slurp ""]
-        [filepath (string-join (list base-path filename) "")])
-    (if (file-exists? filepath)
-        (begin
-          (set! slurp (file->string filepath))
-          (set! body slurp))
-        (begin
-          (set! body (string-join (list "noslurp:" filepath)))))
-    (values headers body)))
-
 (define (ace-server req)
   (let ([tns (make-base-namespace)]
         [hostname (hash-ref (make-hash (request-headers req)) 'host)]
         [uri (url->string (request-uri req))]
-        [headers (make-hash (request-headers req))]
         [body null]
         [filename null]
         [filepath null]
@@ -42,7 +26,6 @@
         (eval `(require ,mod) tns))
       (eval `(current-directory ,base-path) tns)
       (namespace-set-variable-value! 'request req #f tns)
-      (namespace-set-variable-value! 'headers headers #f tns)
       (set! filename (string-join (list base-path uri) ""))
       (set! body
             (with-handlers
@@ -55,7 +38,7 @@
       (response/full 200 #"OK"
                      (current-seconds)
                      TEXT/HTML-MIME-TYPE
-                     headers
+                     null
                      body))))
 
 (define (ace-start
