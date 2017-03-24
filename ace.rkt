@@ -9,12 +9,16 @@
 (define (ace-server req)
   (let ([tns (make-base-namespace)]
         [hostname (hash-ref (make-hash (request-headers req)) 'host)]
-        [uri (url->string (request-uri req))]
+        [uri (regexp-replace #rx"\\?.*$" (url->string (request-uri req)) "")]
+        [query (url-query (request-uri req))]
         [body null]
         [filename null]
         [filepath null]
         [base-path "/www"]
-        [settings null])
+        [content-type TEXT/HTML-MIME-TYPE]
+        [settings null]
+        [http-code (list 200 #"OK")]
+        [query-hash null])
     (for ([hostre (hash-keys hosts)])
       (let ([hre (if (regexp? hostre) hostre (regexp hostre))])
         (when (regexp-match hre hostname)
@@ -25,19 +29,31 @@
       (for ([mod (hash-ref settings 'modules '())])
         (eval `(require ,mod) tns))
       (eval `(current-directory ,base-path) tns)
+      (set! query-hash (make-hash query))
       (namespace-set-variable-value! 'request req #f tns)
+      (namespace-set-variable-value! 'query query-hash #t tns)
       (set! filename (string-join (list base-path uri) ""))
       (set! body
             (with-handlers
-                ([exn:fail:contract:divide-by-zero? (lambda (v) "divide-by-zero")]
-                 [exn:fail? (lambda (v) (format "caught exception:~v" v))])
+                ([exn:fail:filesystem? (lambda (v)
+                                   (set! http-code (list 404 #"Not Found"))
+                                   (set! content-type #"text/plain")
+                                   (format "~a" (exn-message v)))]
+                 [exn:fail? (lambda (v)
+                              (set! http-code (list 500 #"Server Error"))
+                              (set! content-type #"text/plain")
+                              (format "exception:\n~a" v))])
               (set! filepath (build-path filename))
               (set! filepath (find-relative-path (current-directory) filepath))
+              (unless (file-exists? filepath)
+                (raise (make-exn:fail:filesystem (format "File not found: ~a" uri)
+                                                 (current-continuation-marks))))
               (eval `(include-template ,(path->string filepath)) tns)))
       (set! body (list (string->bytes/utf-8 body)))
-      (response/full 200 #"OK"
+      (response/full (first http-code)
+                     (second http-code)
                      (current-seconds)
-                     TEXT/HTML-MIME-TYPE
+                     content-type
                      null
                      body))))
 

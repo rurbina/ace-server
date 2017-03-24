@@ -5,7 +5,11 @@
 
 (define hosts
   #hash{["degen.ml" . #hash{[base-path . "/home/rurbina/Dropbox/DeGen/web-static"]
-                            [modules . (racket db ratamarkup/ratamarkup)]}]})
+                            [modules . (racket
+                                        db
+                                        ratamarkup/ratamarkup
+                                        net/url-structs
+                                        )]}]})
 
 (ace #:hosts hosts)
 
