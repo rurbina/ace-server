@@ -9,7 +9,7 @@
 (require web-server/servlet
          web-server/servlet-env
          web-server/templates
-         unstable/struct
+         racket/struct
          xml
          racket/match
          racket/list
